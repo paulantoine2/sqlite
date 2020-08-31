@@ -26,18 +26,18 @@ let SQLITETRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 class UtilsSQLite {
     // swiftlint:disable function_parameter_count
     class func createConnection(dbHelper: DatabaseHelper, path: String, mode: String,
-                                encrypted: Bool, secret: String, newsecret: String) -> String {
+                                encrypted: Bool, secret: String, newsecret: String, version: Int = 1) -> String {
         var message: String = ""
         if !encrypted && mode == "no-encryption" {
-            message = UtilsSQLite.createConnectionNoEncryption(dbHelper: dbHelper, path: path)
+            message = UtilsSQLite.createConnectionNoEncryption(dbHelper: dbHelper, path: path, version: version)
         } else if encrypted && mode == "secret" && secret.count > 0 {
             message = UtilsSQLite.createConnectionEncryptedWithSecret(dbHelper: dbHelper,
                                                                       path: path, secret: secret,
-                                                                      newsecret: newsecret)
+                                                                      newsecret: newsecret, version: version)
         } else if encrypted && mode == "newsecret" && secret.count > 0 && newsecret.count > 0 {
             message = UtilsSQLite.createConnectionEncryptedWithNewSecret(dbHelper: dbHelper,
                                                                          path: path, secret: secret,
-                                                                         newsecret: newsecret)
+                                                                         newsecret: newsecret, version: version)
         } else if encrypted && mode == "encryption" && secret.count > 0 {
             message = UtilsSQLite.makeEncryption(dbHelper: dbHelper, path: path,
                                                  secret: secret)
@@ -45,7 +45,7 @@ class UtilsSQLite {
         return message
     }
     // swiftlint:enable function_parameter_count
-    class func createConnectionNoEncryption(dbHelper: DatabaseHelper, path: String) -> String {
+    class func createConnectionNoEncryption(dbHelper: DatabaseHelper, path: String, version: Int = 1) -> String {
         var message: String = ""
         var mDB: OpaquePointer?
         do {
@@ -57,7 +57,7 @@ class UtilsSQLite {
         return message
     }
     class func createConnectionEncryptedWithSecret(dbHelper: DatabaseHelper, path: String,
-                                                   secret: String, newsecret: String) -> String {
+                                                   secret: String, newsecret: String, version: Int = 1) -> String {
         var message: String = ""
         var mDB: OpaquePointer?
         do {
@@ -82,7 +82,7 @@ class UtilsSQLite {
         return message
     }
     class func createConnectionEncryptedWithNewSecret(dbHelper: DatabaseHelper, path: String,
-                                                      secret: String, newsecret: String) -> String {
+                                                      secret: String, newsecret: String, version: Int = 1) -> String {
         var message: String = ""
         var mDB: OpaquePointer?
         do {

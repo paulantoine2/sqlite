@@ -1,3 +1,9 @@
+## 2.4.1-devversion.1 (2020-08-31)
+
+### Added Features (alpha not to be used in production)
+
+- add Handling version in Electron platform
+
 ## 2.4.0 (2020-08-07)
 
 ### Chores

@@ -175,8 +175,8 @@ public class SQLiteDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion != newVersion) {
-            dropAllTables(db);
-            onCreate(db);
+            //            dropAllTables(db);
+            //            onCreate(db);
         }
     }
 

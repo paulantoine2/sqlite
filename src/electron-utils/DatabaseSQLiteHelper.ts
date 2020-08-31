@@ -1,4 +1,5 @@
 import { UtilsSQLite } from './UtilsSQLite';
+import { capSQLiteVersionUpgrade } from '../definitions';
 import {
   JsonSQLite,
   JsonTable,
@@ -13,6 +14,11 @@ const fs: any = window['fs' as any];
 export class DatabaseSQLiteHelper {
   public isOpen: boolean = false;
   private _databaseName: string;
+  private _databaseVersion: number;
+  private _upgradeStatements: Record<
+    string,
+    Record<number, capSQLiteVersionUpgrade>
+  >;
   //    private _encrypted: boolean;
   //    private _mode: string;
   //    private _secret: string = "";
@@ -20,24 +26,67 @@ export class DatabaseSQLiteHelper {
   private _utils: UtilsSQLite;
 
   constructor(
-    dbName: string /*, encrypted:boolean = false, mode:string = "no-encryption",
-        secret:string = "",newsecret:string=""*/,
+    dbName: string,
+    dbVersion = 1,
+    upgradeStatements: Record<string, Record<number, capSQLiteVersionUpgrade>>,
+    /*, encrypted:boolean = false, mode:string = "no-encryption",
+        secret:string = "",newsecret:string=""*/
   ) {
     this._utils = new UtilsSQLite();
     this._databaseName = dbName;
+    this._databaseVersion = dbVersion;
+    this._upgradeStatements = upgradeStatements;
     //        this._encrypted = encrypted;
     //        this._mode = mode;
     //        this._secret = secret;
     //        this._newsecret = newsecret;
     this._openDB();
   }
-  private _openDB() {
-    const db = this._utils.connection(
+  private async _openDB() {
+    let db = this._utils.connection(
       this._databaseName,
       false /*,this._secret*/,
     );
     if (db != null) {
       this.isOpen = true;
+      // check if the database got a version
+      let curVersion: number = await this.getDBVersion(db);
+      if (curVersion === -1 || curVersion === 0) {
+        this.updateDatabaseVersion(db, 1);
+        curVersion = 1;
+      }
+      // check if the database version is Ok
+      if (curVersion !== this._databaseVersion) {
+        // version not ok
+        if (this._databaseVersion < curVersion) {
+          this.isOpen = false;
+          console.log(
+            'openDB: Error Database version lower then current version',
+          );
+        } else if (
+          Object.keys(this._upgradeStatements).length !== 0 ||
+          Object.keys(this._upgradeStatements[this._databaseName]).length !== 0
+        ) {
+          this.isOpen = false;
+          console.log(
+            'openDB: Error No upgrade statements found for that database',
+          );
+        } else {
+          db = this.onUpgrade(
+            this._databaseName,
+            db,
+            curVersion,
+            this._databaseVersion,
+          );
+          if (db != null) {
+            this.isOpen = true;
+          } else {
+            this.isOpen = false;
+            console.log('openDB: Error Failed on database version upgrading');
+          }
+        }
+      }
+
       db.close();
     } else {
       this.isOpen = false;
@@ -154,49 +203,64 @@ export class DatabaseSQLiteHelper {
     return new Promise(async resolve => {
       let lastId: number = -1;
       let retRes: any = { changes: -1, lastId: lastId };
-      const db = this._utils.connection(
+      const db = await this._utils.connection(
         this._databaseName,
         false /*,this._secret*/,
       );
-      if (db === null) {
-        this.isOpen = false;
-        console.log('run: Error Database connection failed');
-        resolve(retRes);
-      }
       let retB: boolean = await this.beginTransaction(db);
       if (!retB) {
+        console.log('executeSet: Error beginTransaction failed');
         db.close();
         resolve(retRes);
-      }
-      for (let i = 0; i < set.length; i++) {
-        const statement = 'statement' in set[i] ? set[i].statement : null;
-        const values =
-          'values' in set[i] && set[i].values.length > 0 ? set[i].values : null;
-        if (statement == null || values == null) {
-          console.log('execSet: Error statement or values are null');
-          db.close();
-          resolve(retRes);
-        }
-        lastId = await this.prepare(db, statement, values);
-        if (lastId === -1) {
-          console.log('execSet: Error return lastId= -1');
-          db.close();
-          resolve(retRes);
-        }
       }
 
+      retRes = await this.executeSet(db, set);
+      if (retRes.changes === -1) {
+        console.log('executeSet: Error executeSet failed');
+        db.close();
+        return retRes;
+      }
       retB = await this.endTransaction(db);
       if (!retB) {
+        console.log('executeSet: Error endTransaction failed');
         db.close();
-        resolve(retRes);
+        return retRes;
       }
-      const changes = await this.dbChanges(db);
-      retRes.changes = changes;
-      retRes.lastId = lastId;
       db.close();
       resolve(retRes);
     });
   }
+
+  private async executeSet(db: any, set: Array<any>): Promise<any> {
+    let lastId: number = -1;
+    let retRes: any = { changes: -1, lastId: lastId };
+
+    if (db === null) {
+      this.isOpen = false;
+      console.log('executeSet: Error Database connection failed');
+      return retRes;
+    }
+
+    for (let i = 0; i < set.length; i++) {
+      const statement = 'statement' in set[i] ? set[i].statement : null;
+      const values =
+        'values' in set[i] && set[i].values.length > 0 ? set[i].values : null;
+      if (statement == null || values == null) {
+        console.log('executeSet: Error statement or values are null');
+        return retRes;
+      }
+      lastId = await this.prepare(db, statement, values);
+      if (lastId === -1) {
+        console.log('executeSet: Error return lastId= -1');
+        return retRes;
+      }
+    }
+    const changes = await this.dbChanges(db);
+    retRes.changes = changes;
+    retRes.lastId = lastId;
+    return retRes;
+  }
+
   public run(statement: string, values: Array<any>): Promise<any> {
     return new Promise(async resolve => {
       let lastId: number = -1;
@@ -974,5 +1038,134 @@ export class DatabaseSQLiteHelper {
       }
       resolve(ret);
     });
+  }
+  private getDBVersion(db: any): Promise<number> {
+    return new Promise(async resolve => {
+      const query = `PRAGMA user_version;`;
+      const resQuery: Array<any> = await this.select(db, query, []);
+      if (resQuery.length > 0) {
+        return resolve(resQuery[0].user_version);
+      } else {
+        return resolve(-1);
+      }
+    });
+  }
+  private updateDatabaseVersion(db: any, newVersion: number): void {
+    db.run('PRAGMA user_version = $version;', {
+      $version: newVersion,
+    });
+  }
+  private async onUpgrade(
+    dbName: string,
+    db: any,
+    currentVersion: number,
+    targetVersion: number,
+  ): Promise<any> {
+    /**
+     * When upgrade statements for current database are missing
+     */
+    if (!this._upgradeStatements[dbName]) {
+      console.log(
+        `Error PRAGMA user_version failed : Version mismatch! Expected Versi
+        on ${targetVersion} found Version ${currentVersion}. Missing Upgrade S
+        tatements for Database '${dbName}' Version ${currentVersion}.`,
+      );
+      return null;
+    } else if (!this._upgradeStatements[dbName][currentVersion]) {
+      /**
+       * When upgrade statements for current version are missing
+       */
+      console.log(
+        `Error PRAGMA user_version failed : Version mismatch! Expected Versi
+        on ${targetVersion} found Version ${currentVersion}. Missing Upgrade S
+        tatements for Database '${dbName}' Version ${currentVersion}.`,
+      );
+      return null;
+    }
+
+    const upgrade = this._upgradeStatements[dbName][currentVersion];
+
+    /**
+     * When the version after an upgrade would be greater than the targeted version
+     */
+    if (targetVersion < upgrade.toVersion) {
+      console.log(
+        `Error PRAGMA user_version failed : Version mismatch! Expected Versi
+        on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
+        nt would upgrade to version ${upgrade.toVersion}, but target versio
+        n is ${targetVersion}.`,
+      );
+      return null;
+    }
+
+    let retB: boolean = await this.beginTransaction(db);
+    if (!retB) {
+      console.log('executeSet: Error beginTransaction failed');
+      return null;
+    }
+
+    // TODO
+    //     -> copy database on temp_dbName
+    //     -> get the list of existing columns in each table of temp_dbName
+
+    // Here we assume all the tables schema are given in the upgrade statement
+    if (upgrade.statement) {
+      const result = await this.execute(db, upgrade.statement);
+
+      if (result.changes < 0) {
+        console.log(
+          `Error PRAGMA user_version failed : Version mismatch! Expected Versi
+          on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
+          nt returned error.`,
+        );
+        return null;
+      }
+    }
+
+    // TODO
+    //     -> get the list of columns in each table of the database
+    //     -> get the intersection containing all columns in each table
+    //     -> restore the tables data for old existing columns
+    //
+
+    // here we assume that the Set contains only
+    //  - the data for new tables as INSERT statements
+    //  - the data for new columns in existing tables as UPDATE statements
+
+    if (upgrade.set) {
+      const result = await this.executeSet(db, upgrade.set);
+
+      if (result.changes < 0) {
+        console.log(
+          `Error PRAGMA user_version failed : Version mismatch! Expected Versi
+          on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
+          nt Set returned error.`,
+        );
+        return null;
+      }
+    }
+
+    this.updateDatabaseVersion(db, upgrade.toVersion);
+
+    // TODO
+    //     -> DROP all Tables in temp_dbName
+
+    retB = await this.endTransaction(db);
+    if (!retB) {
+      console.log('executeSet: Error endTransaction failed');
+      return null;
+    }
+    /*  Can you explain in which cases they will be some more updates to do
+
+    // When there are still updates to do
+    if (targetVersion > upgrade.toVersion) {
+      return this.onUpgrade(dbName, db, upgrade.toVersion, targetVersion);
+    }
+*/
+
+    // TODO
+    //     -> Delete temp_dbName
+
+    return db;
   }
 }

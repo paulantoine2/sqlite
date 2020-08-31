@@ -173,6 +173,7 @@ No configuration required for this plugin
 | setSyncDate             | ✅      | ✅  | ✅       | ❌  |
 | isJsonValid             | ✅      | ✅  | ✅       | ❌  |
 | isDBExists              | ✅      | ✅  | ✅       | ❌  |
+| addUpgradeStatement     | ❌      | ❌  | ✅       | ❌  |
 
 ## Documentation
 
@@ -318,6 +319,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tr>
     <td align="center"><a href="https://github.com/jepiqueau"><img src="https://avatars3.githubusercontent.com/u/16580653?v=4" width="100px;" alt=""/><br /><sub><b>Jean Pierre Quéau</b></sub></a><br /><a href="https://github.com/capacitor-community/sqlite/commits?author=jepiqueau" title="Code">💻</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/karyfars"><img src="https://avatars3.githubusercontent.com/u/303016" width="100px;" alt=""/><br /><sub><b>Adam</b></sub></a><br /><a href="https://github.com/capacitor-community/sqlite/commits?author=karyfars" title="Code">💻</a></td>
   </tr>
 </table>
 

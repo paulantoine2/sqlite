@@ -155,6 +155,25 @@ Check if a database exists
 
 Type: `Promise<{result:boolean,message:string}>`
 
+### `addUpgradeStatement({database:"FooDB",upgrade:FooUpgrade}) => Promise<{result:boolean,message:string}>`
+
+Give the upgrade statement when upgrading the database version
+
+### upgrade Object
+
+```
+var FooUpgrade: any = {
+    fromVersion: 1,
+    toVersion: 2,
+    statement: FooStatement,
+    set: FooSet;
+}
+```
+
+#### Returns
+
+Type: `Promise<{result:boolean,message:string}>`
+
 ## Methods available for encrypted database in IOS and Android
 
 ### `open({database:"fooDB",encrypted:true,mode:"encryption"}) => Promise<{result:boolean,message:string}>`

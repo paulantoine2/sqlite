@@ -34,6 +34,7 @@ public class CapacitorSQLite: CAPPlugin {
             return
         }
         let encrypted = call.getBool("encrypted") ?? false
+        let dbVersion: Int = call.getInt("version", 1) ?? 1
         var inMode: String = ""
         var secretKey: String = ""
         var newsecretKey: String = ""
@@ -65,7 +66,7 @@ public class CapacitorSQLite: CAPPlugin {
         }
         do {
            mDb = try DatabaseHelper(databaseName: "\(dbName)SQLite.db", encrypted: encrypted,
-                mode: inMode, secret: secretKey, newsecret: newsecretKey)
+                mode: inMode, secret: secretKey, newsecret: newsecretKey, databaseVersion: dbVersion)
         } catch let error {
             retHandler.rResult(call: call, ret: false, message: "Open command failed: \(error)")
         }
@@ -477,10 +478,18 @@ public class CapacitorSQLite: CAPPlugin {
                 retHandler.rResult(call: call, ret: false, message: "setSyncDate command failed: \(error)")
            }
         } else {
-            retHandler.rChanges(call: call, ret: ["changes": -1],
+            retHandler.rResult(call: call, ret: false,
                 message: "setSyncDate command failed: No database connection ")
         }
     }
+
+    // MARK: - addUpgradeStatement
+
+    @objc func addUpgradeStatement(_ call: CAPPluginCall) {
+        retHandler.rResult(call: call, ret: false, message: "Not Implemented")
+        return
+    }
+
 }
 // swiftlint:enable type_body_length
 // swiftlint:enable file_length

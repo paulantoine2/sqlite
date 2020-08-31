@@ -57,6 +57,7 @@ export type jsonSQLite = {
   database: string,
   encrypted: boolean,
   mode: string,
+  version: number,
   tables: Array<jsonTable>,
 };
 export type jsonTable = {
@@ -85,6 +86,7 @@ const dataToImport: jsonSQLite = {
   database: 'db-from-json',
   encrypted: false,
   mode: 'full',
+  version: 1,
   tables: [
     {
       name: 'users',
@@ -154,6 +156,7 @@ const dataToImport1: jsonSQLite = {
   database: 'db-from-json',
   encrypted: false,
   mode: 'full',
+  version: 1,
   tables: [
     {
       name: 'users',
@@ -189,6 +192,7 @@ const dataToImport2: jsonSQLite = {
   database: 'db-from-json',
   encrypted: false,
   mode: 'full',
+  version: 1,
   tables: [
     {
       name: 'users',
@@ -218,6 +222,7 @@ const partialImport1: any = {
     database : "db-from-json",
     encrypted : false,
     mode : "partial",
+    version: 1,
     tables :[
         {
             name: "users",
@@ -250,6 +255,7 @@ const partialImport1: any = {
   database: 'db-from-json',
   encrypted: false,
   mode: 'partial',
+  version: 1,
   tables: [
     {
       name: 'users',

@@ -2,7 +2,8 @@ import { WebPlugin } from '@capacitor/core';
 import {
   CapacitorSQLitePlugin,
   capSQLiteOptions,
-  capSQLiteResult /*, jsonSQLite*/,
+  capSQLiteResult,
+  capSQLiteVersionUpgrade /*, jsonSQLite*/,
 } from './definitions';
 import { DatabaseSQLiteHelper } from './electron-utils/DatabaseSQLiteHelper';
 import { isJsonSQLite } from './electron-utils/JsonUtils';
@@ -14,6 +15,11 @@ const fs: any = window['fs' as any];
 export class CapacitorSQLitePluginElectron extends WebPlugin
   implements CapacitorSQLitePlugin {
   private mDb!: DatabaseSQLiteHelper;
+  private versionUpgrades: Record<
+    string,
+    Record<number, capSQLiteVersionUpgrade>
+  > = {};
+
   constructor() {
     super({
       name: 'CapacitorSQLite',
@@ -32,6 +38,7 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
       });
     }
     const dbName: string = options.database;
+    const dbVersion: number = options.version ?? 1;
     /*
         let encrypted: boolean = options.encrypted ? options.encrypted : false;
         let inMode: string = "no-encryption";
@@ -39,7 +46,9 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
         let newsecretKey: string = "";
         */
     this.mDb = new DatabaseSQLiteHelper(
-      `${dbName}SQLite.db` /*,encrypted,inMode,secretKey,newsecretKey*/,
+      `${dbName}SQLite.db`,
+      dbVersion,
+      this.versionUpgrades /*,encrypted,inMode,secretKey,newsecretKey*/,
     );
     if (!this.mDb.isOpen) {
       return Promise.reject({
@@ -245,7 +254,12 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
         message: 'Must provide a jsonSQLite object',
       });
     const dbName: string = `${jsonObj.database}SQLite.db`;
-    this.mDb = new DatabaseSQLiteHelper(dbName);
+    const dbVersion: number = options.version ?? 1;
+    this.mDb = new DatabaseSQLiteHelper(
+      dbName,
+      dbVersion,
+      this.versionUpgrades,
+    );
     const ret = await this.mDb.importJson(jsonObj);
     this.mDb.close(dbName);
     //      this.mDb = null;
@@ -289,6 +303,21 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
     const syncDate: string = options.syncdate;
     const ret: boolean = await this.mDb.setSyncDate(syncDate);
     return Promise.resolve({ result: ret });
+  }
+  async addUpgradeStatement(
+    database: string,
+    upgrade: capSQLiteVersionUpgrade,
+  ): Promise<capSQLiteResult> {
+    if (!this.versionUpgrades[database]) {
+      this.versionUpgrades[database] = {};
+    }
+    this.versionUpgrades[database][upgrade.fromVersion] = {
+      fromVersion: upgrade.fromVersion,
+      toVersion: upgrade.toVersion,
+      statement: upgrade.statement,
+      set: upgrade.set,
+    };
+    return Promise.resolve({ result: true });
   }
 }
 

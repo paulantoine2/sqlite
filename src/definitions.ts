@@ -83,6 +83,16 @@ export interface CapacitorSQLitePlugin {
    * @returns {Promise<capSQLiteResult>} {result:boolean}
    */
   setSyncDate(options: capSQLiteOptions): Promise<capSQLiteResult>;
+  /**
+   * Add an upgrade statement
+   * @param {string} database Database Name
+   * @param {capSQLiteVersionUpgrade} upgrade {fromVersion: number, toVersion: number, statement?: string, set?: Array<capSQLiteSet>}
+   * @returns {Promise<capSQLiteResult>} {result:boolean}
+   */
+  addUpgradeStatement(
+    database: string,
+    upgrade: capSQLiteVersionUpgrade,
+  ): Promise<capSQLiteResult>;
 }
 
 export interface capSQLiteOptions {
@@ -115,6 +125,10 @@ export interface capSQLiteOptions {
    * ["encryption", "secret","newsecret"]
    */
   mode?: string;
+  /***
+   * Set Database Version
+   */
+  version?: number;
   /***
    * Set the JSON object to import
    *
@@ -164,4 +178,10 @@ export interface capSQLiteSet {
    * the data values list as an Array
    */
   values?: Array<any>;
+}
+export interface capSQLiteVersionUpgrade {
+  fromVersion: number;
+  toVersion: number;
+  statement?: string;
+  set?: Array<capSQLiteSet>;
 }

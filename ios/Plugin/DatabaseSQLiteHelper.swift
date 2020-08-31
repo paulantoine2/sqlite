@@ -63,6 +63,7 @@ class DatabaseHelper {
     // define the path for the database
     var path: String = ""
     var databaseName: String
+    var databaseVersion: Int
     var secret: String
     var newsecret: String
     var encrypted: Bool
@@ -71,12 +72,13 @@ class DatabaseHelper {
     // MARK: - Init
 
     init(databaseName: String, encrypted: Bool = false, mode: String = "no-encryption",
-         secret: String = "", newsecret: String = "") throws {
+         secret: String = "", newsecret: String = "", databaseVersion: Int = 1) throws {
         print("databaseName: \(databaseName) ")
         self.secret = secret
         self.newsecret = newsecret
         self.encrypted = encrypted
         self.databaseName = databaseName
+        self.databaseVersion = databaseVersion
         self.mode = mode
         do {
             self.path = try UtilsSQLite.getFilePath(fileName: databaseName)
@@ -88,7 +90,7 @@ class DatabaseHelper {
 
         let message: String = UtilsSQLite.createConnection(dbHelper: self, path: self.path, mode: self.mode,
                                                             encrypted: self.encrypted, secret: self.secret,
-                                                            newsecret: self.newsecret)
+                                                            newsecret: self.newsecret, version: self.databaseVersion)
         self.isOpen = message.count == 0 || message == "swap newsecret" ||
                  message == "success encryption" ? true : false
 

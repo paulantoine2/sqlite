@@ -61,6 +61,7 @@ public class CapacitorSQLite extends Plugin {
     @PluginMethod
     public void open(PluginCall call) {
         String dbName = null;
+        int dbVersion = 1;
         String secret = null;
         String newsecret = null;
         String inMode = null;
@@ -75,6 +76,7 @@ public class CapacitorSQLite extends Plugin {
             retResult(call, false, "Open command failed: Must provide a database name");
             return;
         }
+        dbVersion = call.getInt("version", 1);
         boolean encrypted = call.getBoolean("encrypted", false);
         if (encrypted) {
             inMode = call.getString("mode", "no-encryption");
@@ -106,7 +108,7 @@ public class CapacitorSQLite extends Plugin {
             inMode = "no-encryption";
             secret = "";
         }
-        mDb = new SQLiteDatabaseHelper(context, dbName + "SQLite.db", encrypted, inMode, secret, newsecret, 1);
+        mDb = new SQLiteDatabaseHelper(context, dbName + "SQLite.db", encrypted, inMode, secret, newsecret, dbVersion);
         if (!mDb.isOpen) {
             retResult(call, false, "Open command failed: Database " + dbName + "SQLite.db not opened");
         } else {
@@ -414,6 +416,12 @@ public class CapacitorSQLite extends Plugin {
         } else {
             retResult(call, true, null);
         }
+    }
+
+    @PluginMethod
+    public void addUpgradeStatement(PluginCall call) {
+        retResult(call, false, "Not yet implemented");
+        return;
     }
 
     @Override
