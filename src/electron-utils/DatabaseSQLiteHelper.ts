@@ -40,8 +40,11 @@ export class DatabaseSQLiteHelper {
     //        this._mode = mode;
     //        this._secret = secret;
     //        this._newsecret = newsecret;
-    this._openDB();
   }
+  public async setup(): Promise<any> {
+    await this._openDB();
+  }
+
   private async _openDB() {
     let db = this._utils.connection(
       this._databaseName,
@@ -51,11 +54,24 @@ export class DatabaseSQLiteHelper {
       this.isOpen = true;
       // check if the database got a version
       let curVersion: number = await this.getDBVersion(db);
+      console.log('openDB: curVersion ', curVersion);
       if (curVersion === -1 || curVersion === 0) {
-        this.updateDatabaseVersion(db, 1);
-        curVersion = 1;
+        await this.updateDatabaseVersion(db, 1);
+        curVersion = await this.getDBVersion(db);
+        console.log(
+          'openDB: After updateDatabaseVersion curVersion ',
+          curVersion,
+        );
       }
       // check if the database version is Ok
+      console.log(
+        'openDB: curVersion ' +
+          curVersion +
+          ' databaseVersion ' +
+          this._databaseVersion,
+      );
+      console.log('this._databaseName ', this._databaseName);
+      console.log('this._upgradeStatements ', this._upgradeStatements);
       if (curVersion !== this._databaseVersion) {
         // version not ok
         if (this._databaseVersion < curVersion) {
@@ -64,21 +80,21 @@ export class DatabaseSQLiteHelper {
             'openDB: Error Database version lower then current version',
           );
         } else if (
-          Object.keys(this._upgradeStatements).length !== 0 ||
-          Object.keys(this._upgradeStatements[this._databaseName]).length !== 0
+          Object.keys(this._upgradeStatements).length === 0 ||
+          Object.keys(this._upgradeStatements[this._databaseName]).length === 0
         ) {
           this.isOpen = false;
           console.log(
             'openDB: Error No upgrade statements found for that database',
           );
         } else {
-          db = this.onUpgrade(
+          let res: boolean = await this.onUpgrade(
             this._databaseName,
             db,
             curVersion,
             this._databaseVersion,
           );
-          if (db != null) {
+          if (res) {
             this.isOpen = true;
           } else {
             this.isOpen = false;
@@ -100,6 +116,7 @@ export class DatabaseSQLiteHelper {
         this._databaseName,
         false /*,this._secret*/,
       );
+      console.log('createSyncTable ');
       if (db === null) {
         this.isOpen = false;
         console.log('exec: Error Database connection failed');
@@ -107,6 +124,7 @@ export class DatabaseSQLiteHelper {
       }
       // check if the table has already been created
       const isExists = await this.isTableExists(db, 'sync_table');
+      console.log('createSyncTable isExists ', isExists);
       if (!isExists) {
         const date: number = Math.round(new Date().getTime() / 1000);
         const stmts = `
@@ -119,6 +137,7 @@ export class DatabaseSQLiteHelper {
                 COMMIT TRANSACTION;
                 `;
         retRes = await this.execute(db, stmts);
+        console.log('createSyncTable retRes ', retRes);
       }
       db.close();
       resolve(retRes);
@@ -415,6 +434,16 @@ export class DatabaseSQLiteHelper {
   public importJson(jsonData: JsonSQLite): Promise<any> {
     return new Promise(async resolve => {
       let changes: number = -1;
+      // set PRAGMA
+      let pragmas: string = `
+        PRAGMA user_version = ${this._databaseVersion};
+        PRAGMA foreign_keys = ON;            
+      `;
+      const pchanges: number = await this.exec(pragmas);
+
+      if (pchanges === -1)
+        resolve({ changes: changes, message: 'Error in setting PAGMA' });
+
       // create the database schema
       changes = await this.createDatabaseSchema(jsonData);
       if (changes != -1) {
@@ -450,14 +479,6 @@ export class DatabaseSQLiteHelper {
       let changes: number = -1;
       let isSchema: boolean = false;
       let isIndexes: boolean = false;
-      // set PRAGMA
-      let pragmas: string = `
-            PRAGMA user_version = 1;
-            PRAGMA foreign_keys = ON;            
-            `;
-      const pchanges: number = await this.exec(pragmas);
-
-      if (pchanges === -1) resolve(-1);
       // create the database schema
       let statements: Array<string> = [];
       statements.push('BEGIN TRANSACTION;');
@@ -1050,17 +1071,27 @@ export class DatabaseSQLiteHelper {
       }
     });
   }
-  private updateDatabaseVersion(db: any, newVersion: number): void {
+  private async updateDatabaseVersion(
+    db: any,
+    newVersion: number,
+  ): Promise<number> {
+    let pragmas: string = `
+      PRAGMA user_version = ${newVersion};
+    `;
+    const pchanges: number = await this.execute(db, pragmas);
+    return pchanges;
+    /*
     db.run('PRAGMA user_version = $version;', {
       $version: newVersion,
     });
+    */
   }
   private async onUpgrade(
     dbName: string,
     db: any,
     currentVersion: number,
     targetVersion: number,
-  ): Promise<any> {
+  ): Promise<boolean> {
     /**
      * When upgrade statements for current database are missing
      */
@@ -1070,7 +1101,7 @@ export class DatabaseSQLiteHelper {
         on ${targetVersion} found Version ${currentVersion}. Missing Upgrade S
         tatements for Database '${dbName}' Version ${currentVersion}.`,
       );
-      return null;
+      return false;
     } else if (!this._upgradeStatements[dbName][currentVersion]) {
       /**
        * When upgrade statements for current version are missing
@@ -1080,7 +1111,7 @@ export class DatabaseSQLiteHelper {
         on ${targetVersion} found Version ${currentVersion}. Missing Upgrade S
         tatements for Database '${dbName}' Version ${currentVersion}.`,
       );
-      return null;
+      return false;
     }
 
     const upgrade = this._upgradeStatements[dbName][currentVersion];
@@ -1095,13 +1126,13 @@ export class DatabaseSQLiteHelper {
         nt would upgrade to version ${upgrade.toVersion}, but target versio
         n is ${targetVersion}.`,
       );
-      return null;
+      return false;
     }
 
     let retB: boolean = await this.beginTransaction(db);
     if (!retB) {
       console.log('executeSet: Error beginTransaction failed');
-      return null;
+      return false;
     }
 
     // TODO
@@ -1118,7 +1149,7 @@ export class DatabaseSQLiteHelper {
           on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
           nt returned error.`,
         );
-        return null;
+        return false;
       }
     }
 
@@ -1141,11 +1172,11 @@ export class DatabaseSQLiteHelper {
           on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
           nt Set returned error.`,
         );
-        return null;
+        return false;
       }
     }
 
-    this.updateDatabaseVersion(db, upgrade.toVersion);
+    await this.updateDatabaseVersion(db, upgrade.toVersion);
 
     // TODO
     //     -> DROP all Tables in temp_dbName
@@ -1153,7 +1184,7 @@ export class DatabaseSQLiteHelper {
     retB = await this.endTransaction(db);
     if (!retB) {
       console.log('executeSet: Error endTransaction failed');
-      return null;
+      return false;
     }
     /*  Can you explain in which cases they will be some more updates to do
 
@@ -1166,6 +1197,6 @@ export class DatabaseSQLiteHelper {
     // TODO
     //     -> Delete temp_dbName
 
-    return db;
+    return true;
   }
 }

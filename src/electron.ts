@@ -50,6 +50,7 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
       dbVersion,
       this.versionUpgrades /*,encrypted,inMode,secretKey,newsecretKey*/,
     );
+    await this.mDb.setup();
     if (!this.mDb.isOpen) {
       return Promise.reject({
         result: false,
@@ -260,6 +261,7 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
       dbVersion,
       this.versionUpgrades,
     );
+    await this.mDb.setup();
     const ret = await this.mDb.importJson(jsonObj);
     this.mDb.close(dbName);
     //      this.mDb = null;
@@ -308,10 +310,11 @@ export class CapacitorSQLitePluginElectron extends WebPlugin
     database: string,
     upgrade: capSQLiteVersionUpgrade,
   ): Promise<capSQLiteResult> {
-    if (!this.versionUpgrades[database]) {
-      this.versionUpgrades[database] = {};
+    const fullDBName = `${database}SQLite.db`;
+    if (!this.versionUpgrades[fullDBName]) {
+      this.versionUpgrades[fullDBName] = {};
     }
-    this.versionUpgrades[database][upgrade.fromVersion] = {
+    this.versionUpgrades[fullDBName][upgrade.fromVersion] = {
       fromVersion: upgrade.fromVersion,
       toVersion: upgrade.toVersion,
       statement: upgrade.statement,
