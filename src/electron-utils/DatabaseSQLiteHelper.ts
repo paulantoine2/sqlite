@@ -207,7 +207,9 @@ export class DatabaseSQLiteHelper {
       db.serialize(() => {
         db.exec(statements, async (err: Error) => {
           if (err) {
-            console.log(`exec: Error Execute command failed : ${err.message}`);
+            console.log(
+              `execute: Error Execute command failed : ${err.message}`,
+            );
             resolve(retRes);
           } else {
             const changes: number = await this.dbChanges(db);
@@ -1128,37 +1130,39 @@ export class DatabaseSQLiteHelper {
       );
       return false;
     }
-
-    let retB: boolean = await this.beginTransaction(db);
-    if (!retB) {
-      console.log('executeSet: Error beginTransaction failed');
+    // set PRAGMA
+    let pragmas: string = `
+      PRAGMA foreign_keys = OFF;            
+    `;
+    let pchanges: number = await this.execute(db, pragmas);
+    if (pchanges === -1) {
+      console.log('onUpgrade: Error in setting PRAGMA foreign_keys = OFF');
       return false;
     }
 
-    // TODO
-    //     -> copy database on temp_dbName
-    //     -> get the list of existing columns in each table of temp_dbName
+    let retB: boolean = await this.beginTransaction(db);
+    if (!retB) {
+      console.log('onUpgrade: Error beginTransaction failed');
+      return false;
+    }
 
     // Here we assume all the tables schema are given in the upgrade statement
     if (upgrade.statement) {
+      // -> backup all existing tables  "tableName" in "temp_tableName"
+      /*      const retB: boolean = await this.backupTables(db, dbName);
+      if(!retB) {
+        console.log("onUpgrade Error in backuping existing tables");
+        return false;
+      }
+*/
+      // -> upgrading all existing table's schema and creating new one
       const result = await this.execute(db, upgrade.statement);
 
       if (result.changes < 0) {
-        console.log(
-          `Error PRAGMA user_version failed : Version mismatch! Expected Versi
-          on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
-          nt returned error.`,
-        );
+        console.log(`onUpgrade Error in creating tables `);
         return false;
       }
     }
-
-    // TODO
-    //     -> get the list of columns in each table of the database
-    //     -> get the intersection containing all columns in each table
-    //     -> restore the tables data for old existing columns
-    //
-
     // here we assume that the Set contains only
     //  - the data for new tables as INSERT statements
     //  - the data for new columns in existing tables as UPDATE statements
@@ -1167,25 +1171,28 @@ export class DatabaseSQLiteHelper {
       const result = await this.executeSet(db, upgrade.set);
 
       if (result.changes < 0) {
-        console.log(
-          `Error PRAGMA user_version failed : Version mismatch! Expected Versi
-          on ${targetVersion} found Version ${currentVersion}. Upgrade Stateme
-          nt Set returned error.`,
-        );
+        console.log('onUpgrade Error executeSet Failed');
         return false;
       }
     }
 
     await this.updateDatabaseVersion(db, upgrade.toVersion);
 
-    // TODO
-    //     -> DROP all Tables in temp_dbName
-
     retB = await this.endTransaction(db);
     if (!retB) {
-      console.log('executeSet: Error endTransaction failed');
+      console.log('updateDatabaseVersion: Error endTransaction failed');
       return false;
     }
+    // set PRAGMA
+    pragmas = `
+      PRAGMA foreign_keys = ON;            
+    `;
+    pchanges = await this.execute(db, pragmas);
+    if (pchanges === -1) {
+      console.log('onUpgrade: Error in setting PRAGMA foreign_keys = ON');
+      return false;
+    }
+
     /*  Can you explain in which cases they will be some more updates to do
 
     // When there are still updates to do
@@ -1193,9 +1200,6 @@ export class DatabaseSQLiteHelper {
       return this.onUpgrade(dbName, db, upgrade.toVersion, targetVersion);
     }
 */
-
-    // TODO
-    //     -> Delete temp_dbName
 
     return true;
   }
