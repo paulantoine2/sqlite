@@ -1,3 +1,9 @@
+## 2.4.1-devversion.3 (2020-09-02)
+
+### Added Features
+
+- add Upgrade Database Version documentation
+
 ## 2.4.1-devversion.2 (2020-08-31)
 
 ### Bug Fixes
